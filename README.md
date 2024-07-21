@@ -21,7 +21,7 @@ PyLLM is a project that aims to provide an easy-to-use interface for handling La
 
 ## Features
 
-- Backend support for Language Models.
+- Backend support for advanced Language Models using manual neural network implementation.
 - GUI interface for training and generating text.
 - Data scraping from specified URLs.
 - Lightweight and efficient codebase.
