@@ -44,59 +44,52 @@ class TrainView(ui.View):
 
         self.train_button = ui.Button(frame=(padding, self.epoch_step_field.y + element_height + padding, element_width, element_height))
         self.train_button.title = 'Train Model'
-        self.train_button.background_color = '#34A853'
+        self.train_button.background_color = 'blue'
         self.train_button.tint_color = 'white'
         self.train_button.corner_radius = 5
         self.train_button.flex = 'W'
         self.train_button.action = self.train_model
         self.add_subview(self.train_button)
-        
-        self.result_label = ui.Label(frame=(padding, self.train_button.y + element_height + padding, element_width, 80))
-        self.result_label.text = 'Training status will appear here'
-        self.result_label.text_color = 'white'
-        self.result_label.alignment = ui.ALIGN_CENTER
-        self.result_label.number_of_lines = 0
-        self.result_label.flex = 'W'
-        self.add_subview(self.result_label)
-        
+
+        self.status_label = ui.Label(frame=(padding, self.train_button.y + element_height + padding, element_width, element_height))
+        self.status_label.text = 'Status: Idle'
+        self.status_label.text_color = 'white'
+        self.status_label.flex = 'W'
+        self.add_subview(self.status_label)
+
     def train_model(self, sender):
         url = self.url_field.text
-        total_epochs = int(self.epochs_field.text) if self.epochs_field.text.isdigit() else 1000
-        epoch_step = int(self.epoch_step_field.text) if self.epoch_step_field.text.isdigit() else 100
-        if url:
-            threading.Thread(target=self.train_model_thread, args=(url, total_epochs, epoch_step)).start()
-            self.result_label.text = 'Training started...'
-        else:
-            self.result_label.text = 'Please enter a valid URL'
-    
-    def train_model_thread(self, url, total_epochs, epoch_step):
-        self.word2index, self.index2word = train_model(url, total_epochs, epoch_step)
-        save_model(self.word2index, self.index2word)
-        self.result_label.text = 'Training completed.'
-    
-    def load_model(self):
-        self.word2index, self.index2word, self.nn = load_model()
-        if self.word2index is not None:
-            self.result_label.text = 'Model loaded successfully.'
-        else:
-            self.result_label.text = 'No saved model found.'
+        epochs = int(self.epochs_field.text)
+        epoch_step = int(self.epoch_step_field.text)
 
-class GenerateView(ui.View):
-    def __init__(self, train_view, *args, **kwargs):
+        self.status_label.text = 'Status: Fetching data...'
+        data = fetch_data(url)
+        self.status_label.text = 'Status: Tokenizing data...'
+        tokens, word2index, index2word = tokenize(data)
+        self.status_label.text = 'Status: Training model...'
+
+        def train_and_update():
+            nn, word2index, index2word = train_model(url, epochs, epoch_step, 0.01)
+            self.status_label.text = 'Status: Training complete.'
+            save_model(word2index, index2word, nn)
+
+        threading.Thread(target=train_and_update).start()
+
+class GenerateTextView(ui.View):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.name = 'Generate Text'
         self.background_color = 'black'
-        self.train_view = train_view
         self.flex = 'WH'
         self.setup_ui()
-    
+
     def setup_ui(self):
         padding = 10
         element_height = 40
         element_width = self.width - 2 * padding
-        
+
         self.seed_field = ui.TextField(frame=(padding, padding, element_width, element_height))
-        self.seed_field.placeholder = 'Enter seed word'
+        self.seed_field.placeholder = 'Enter seed text'
         self.seed_field.background_color = 'white'
         self.seed_field.text_color = 'black'
         self.seed_field.border_color = 'gray'
@@ -104,63 +97,78 @@ class GenerateView(ui.View):
         self.seed_field.flex = 'W'
         self.add_subview(self.seed_field)
         
-        self.generate_button = ui.Button(frame=(padding, self.seed_field.y + element_height + padding, element_width, element_height))
+        self.length_field = ui.TextField(frame=(padding, self.seed_field.y + element_height + padding, element_width, element_height))
+        self.length_field.placeholder = 'Enter length (e.g., 100 words)'
+        self.length_field.background_color = 'white'
+        self.length_field.text_color = 'black'
+        self.length_field.border_color = 'gray'
+        self.length_field.corner_radius = 5
+        self.length_field.flex = 'W'
+        self.add_subview(self.length_field)
+
+        self.generate_button = ui.Button(frame=(padding, self.length_field.y + element_height + padding, element_width, element_height))
         self.generate_button.title = 'Generate Text'
-        self.generate_button.background_color = '#4285F4'
+        self.generate_button.background_color = 'green'
         self.generate_button.tint_color = 'white'
         self.generate_button.corner_radius = 5
         self.generate_button.flex = 'W'
         self.generate_button.action = self.generate_text
         self.add_subview(self.generate_button)
-        
-        self.result_label = ui.Label(frame=(padding, self.generate_button.y + element_height + padding, element_width, 80))
-        self.result_label.text = 'Generated text will appear here'
-        self.result_label.text_color = 'white'
-        self.result_label.alignment = ui.ALIGN_CENTER
-        self.result_label.number_of_lines = 0
-        self.result_label.flex = 'W'
-        self.add_subview(self.result_label)
-        
-    def generate_text(self, sender):
-        seed_word = self.seed_field.text
-        if seed_word and hasattr(self.train_view, 'word2index'):
-            generated_text = generate_text(self.train_view.word2index, self.train_view.index2word, self.train_view.nn, seed_word)
-            self.result_label.text = f'Generated text: {generated_text}'
-        else:
-            self.result_label.text = 'Please enter a valid seed word and train the model first'
 
-class NeuralNetworkApp(ui.View):
+        self.output_text = ui.TextView(frame=(padding, self.generate_button.y + element_height + padding, element_width, self.height - self.generate_button.y - 2 * element_height - padding))
+        self.output_text.background_color = 'white'
+        self.output_text.text_color = 'black'
+        self.output_text.border_color = 'gray'
+        self.output_text.corner_radius = 5
+        self.output_text.flex = 'WH'
+        self.add_subview(self.output_text)
+
+    def generate_text(self, sender):
+        seed_text = self.seed_field.text
+        length = int(self.length_field.text)
+        word2index, index2word, nn = load_model()
+        generated_text = generate_text(seed_text, length, word2index, index2word, nn)
+        self.output_text.text = generated_text
+
+class MainView(ui.View):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.name = 'PyLLM'
         self.background_color = 'black'
-        self.train_view = TrainView(frame=self.bounds)
-        self.generate_view = GenerateView(self.train_view, frame=self.bounds)
         self.flex = 'WH'
         self.setup_ui()
-    
-    def setup_ui(self):
-        self.seg_control = ui.SegmentedControl(frame=(10, 30, self.width - 20, 32))
-        self.seg_control.segments = ['Train Model', 'Generate Text']
-        self.seg_control.selected_index = 0
-        self.seg_control.action = self.switch_view
-        self.seg_control.flex = 'W'
-        self.add_subview(self.seg_control)
-        
-        self.container_view = ui.View(frame=(0, self.seg_control.y + self.seg_control.height + 10, self.width, self.height - (self.seg_control.y + self.seg_control.height + 10)))
-        self.container_view.flex = 'WH'
-        self.add_subview(self.container_view)
-        
-        self.views = [self.train_view, self.generate_view]
-        self.current_view = None
-        self.switch_view()
-    
-    def switch_view(self, sender=None):
-        if self.current_view:
-            self.container_view.remove_subview(self.current_view)
-        self.current_view = self.views[self.seg_control.selected_index]
-        self.current_view.frame = self.container_view.bounds
-        self.container_view.add_subview(self.current_view)
-        print(f"Switched to view: {self.seg_control.selected_index}")
 
-app = NeuralNetworkApp()
-app.present('full_screen')
+    def setup_ui(self):
+        padding = 10
+        element_height = 40
+        element_width = self.width - 2 * padding
+
+        self.train_view_button = ui.Button(frame=(padding, padding, element_width, element_height))
+        self.train_view_button.title = 'Train Model'
+        self.train_view_button.background_color = 'blue'
+        self.train_view_button.tint_color = 'white'
+        self.train_view_button.corner_radius = 5
+        self.train_view_button.flex = 'W'
+        self.train_view_button.action = self.show_train_view
+        self.add_subview(self.train_view_button)
+
+        self.generate_text_view_button = ui.Button(frame=(padding, self.train_view_button.y + element_height + padding, element_width, element_height))
+        self.generate_text_view_button.title = 'Generate Text'
+        self.generate_text_view_button.background_color = 'green'
+        self.generate_text_view_button.tint_color = 'white'
+        self.generate_text_view_button.corner_radius = 5
+        self.generate_text_view_button.flex = 'W'
+        self.generate_text_view_button.action = self.show_generate_text_view
+        self.add_subview(self.generate_text_view_button)
+
+    def show_train_view(self, sender):
+        train_view = TrainView()
+        train_view.present('fullscreen')
+
+    def show_generate_text_view(self, sender):
+        generate_text_view = GenerateTextView()
+        generate_text_view.present('fullscreen')
+
+if __name__ == '__main__':
+    main_view = MainView()
+    main_view.present('fullscreen')
