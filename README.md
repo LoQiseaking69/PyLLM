@@ -11,6 +11,7 @@ PyLLM is a Python-based application designed to implement and manage Language Mo
 - [File Structure](#file-structure)
 - [License](#license)
 
+![img](
 ## Introduction
 
 PyLLM is a project that aims to provide an easy-to-use interface for handling Language Models within the Pythonista environment. It encapsulates the essential components required to run and manage these models efficiently, including data scraping from URLs.
